@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mic, MicOff, PhoneOff, Volume2 } from 'lucide-react';
-import type { VoiceParticipant } from '../../hooks/usePeerConnection';
+import type { VoiceParticipant } from '../../hooks/useVoiceCall';
 
 interface VoiceCallWindowProps {
   peerId: string | null;

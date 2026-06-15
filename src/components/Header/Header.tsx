@@ -1,7 +1,12 @@
 import React from 'react';
 import { Wifi } from 'lucide-react';
 
-const Header: React.FC = () => (
+interface HeaderProps {
+  /** Slot rendered just before the WebRTC Mesh pill — used for the activity-log toggle. */
+  rightSlot?: React.ReactNode;
+}
+
+const Header: React.FC<HeaderProps> = ({ rightSlot }) => (
   <header className="hud-header">
     <div className="flex items-center gap-3">
       <div className="relative">
@@ -21,6 +26,7 @@ const Header: React.FC = () => (
     </div>
 
     <div className="flex items-center gap-2">
+      {rightSlot}
       <div className="hud-badge-pill">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
         WebRTC Mesh

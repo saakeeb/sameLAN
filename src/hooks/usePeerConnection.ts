@@ -1,19 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { DataConnection, MediaConnection } from 'peerjs';
+import type { DataConnection } from 'peerjs';
 import type { ConnectionStatus, LogEntry } from '../types';
 import { generateId } from '../utils/generateId';
+import { useVoiceCall } from './useVoiceCall';
 
 export interface PeerEntry {
   id: string;
   conn: DataConnection;
   status: 'connecting' | 'connected';
-}
-
-export interface VoiceParticipant {
-  id: string;
-  isMuted?: boolean;
-  stream?: MediaStream;
 }
 
 export const usePeerConnection = () => {
@@ -22,15 +17,8 @@ export const usePeerConnection = () => {
   const [peers, setPeers] = useState<PeerEntry[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  // Voice call state
-  const [isInCall, setIsInCall] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([]);
-
   const peerRef = useRef<Peer | null>(null);
   const peersRef = useRef<Map<string, DataConnection>>(new Map());
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const mediaCallsRef = useRef<Map<string, MediaConnection>>(new Map());
 
   // ─── Logging ──────────────────────────────────────────────────────────────
   const addLog = useCallback((type: 'info' | 'success' | 'warning' | 'error', message: string) => {
@@ -42,6 +30,19 @@ export const usePeerConnection = () => {
         message,
       },
       ...prev,
+    ]);
+  }, []);
+
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+    // re-add a single marker so the log isn't immediately empty again
+    setLogs([
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'info',
+        message: 'Activity log cleared',
+      },
     ]);
   }, []);
 
@@ -156,95 +157,8 @@ export const usePeerConnection = () => {
     setStatus('idle');
   }, []);
 
-  // ─── Voice Call ───────────────────────────────────────────────────────────
-  const getLocalStream = useCallback(async (): Promise<MediaStream | null> => {
-    if (localStreamRef.current) return localStreamRef.current;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      localStreamRef.current = stream;
-      return stream;
-    } catch {
-      addLog('error', 'Microphone access denied or unavailable');
-      return null;
-    }
-  }, [addLog]);
-
-  const handleIncomingCall = useCallback(
-    async (call: MediaConnection) => {
-      const stream = await getLocalStream();
-      if (!stream) return;
-      call.answer(stream);
-      mediaCallsRef.current.set(call.peer, call);
-
-      call.on('stream', (remoteStream) => {
-        const audio = new Audio();
-        audio.srcObject = remoteStream;
-        audio.autoplay = true;
-        setVoiceParticipants((prev) => {
-          if (prev.find((p) => p.id === call.peer)) return prev;
-          return [...prev, { id: call.peer, stream: remoteStream }];
-        });
-      });
-      call.on('close', () => {
-        mediaCallsRef.current.delete(call.peer);
-        setVoiceParticipants((prev) => prev.filter((p) => p.id !== call.peer));
-      });
-    },
-    [getLocalStream]
-  );
-
-  const joinVoiceCall = useCallback(async () => {
-    const stream = await getLocalStream();
-    if (!stream || !peerRef.current) return;
-
-    setIsInCall(true);
-    setVoiceParticipants([{ id: peerRef.current.id!, isMuted: false }]);
-    addLog('info', 'Joined voice channel');
-
-    // Call all connected peers
-    peersRef.current.forEach((_, peerId) => {
-      if (!peerRef.current) return;
-      const call = peerRef.current.call(peerId, stream);
-      mediaCallsRef.current.set(peerId, call);
-
-      call.on('stream', (remoteStream) => {
-        const audio = new Audio();
-        audio.srcObject = remoteStream;
-        audio.autoplay = true;
-        setVoiceParticipants((prev) => {
-          if (prev.find((p) => p.id === peerId)) return prev;
-          return [...prev, { id: peerId, stream: remoteStream }];
-        });
-      });
-      call.on('close', () => {
-        mediaCallsRef.current.delete(peerId);
-        setVoiceParticipants((prev) => prev.filter((p) => p.id !== peerId));
-      });
-    });
-
-    broadcast({ type: 'voice-join', payload: { peerId: peerRef.current.id } });
-  }, [getLocalStream, broadcast, addLog]);
-
-  const leaveVoiceCall = useCallback(() => {
-    mediaCallsRef.current.forEach((call) => call.close());
-    mediaCallsRef.current.clear();
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
-    setIsInCall(false);
-    setIsMuted(false);
-    setVoiceParticipants([]);
-    addLog('info', 'Left voice channel');
-    broadcast({ type: 'voice-leave', payload: { peerId: peerRef.current?.id } });
-  }, [broadcast, addLog]);
-
-  const toggleMute = useCallback(() => {
-    if (!localStreamRef.current) return;
-    const enabled = !isMuted;
-    localStreamRef.current.getAudioTracks().forEach((t) => (t.enabled = enabled));
-    setIsMuted(!enabled);
-  }, [isMuted]);
+  // ─── Voice concerns delegated to useVoiceCall ─────────────────────────────
+  const voice = useVoiceCall({ peer: peerRef.current, peersRef, addLog });
 
   // ─── Init Peer ────────────────────────────────────────────────────────────
   const initPeer = useCallback(() => {
@@ -267,8 +181,7 @@ export const usePeerConnection = () => {
 
     peer.on('call', (call) => {
       addLog('info', `Incoming voice call from ${call.peer}`);
-      handleIncomingCall(call);
-      if (!isInCall) setIsInCall(true);
+      voice.handleIncomingCall(call);
     });
 
     peer.on('error', (err) => {
@@ -291,14 +204,13 @@ export const usePeerConnection = () => {
       addLog('error', 'Peer destroyed');
       setStatus('disconnected');
     });
-  }, [addLog, handleConnection, handleIncomingCall, isInCall]);
+  }, [addLog, handleConnection, voice]);
 
   useEffect(() => {
     initPeer();
     return () => {
       peersRef.current.forEach((c) => c.close());
       if (peerRef.current) peerRef.current.destroy();
-      if (localStreamRef.current) localStreamRef.current.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -317,13 +229,9 @@ export const usePeerConnection = () => {
     connectToPeer,
     disconnectPeer,
     disconnectAll,
+    clearLogs,
     // Voice
-    isInCall,
-    isMuted,
-    voiceParticipants,
-    joinVoiceCall,
-    leaveVoiceCall,
-    toggleMute,
+    ...voice,
   };
 };
 

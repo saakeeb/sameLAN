@@ -1,74 +1,35 @@
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
 # sameLAN
+
+**sameLAN** is a browser-based peer-to-peer sharing app for people on the same Wi-Fi network. It lets you send files, chat, and voice-call nearby devices directly — no accounts, no cloud, no server in the middle.
+
+## Features
+
+- **Mesh file transfer** — drop a file into the lobby and it streams to every connected peer in parallel, with backpressure-aware chunking and per-peer progress.
+- **Group chat** — broadcast messages to everyone in the room.
+- **Voice calls** — WebRTC MediaConnection for low-latency voice between peers, with mute and leave controls.
+- **Activity log** — every connection, transfer, and call event is captured in a slide-down drawer; clearable on demand.
+- **HUD-style UI** — radar canvas, holo-frame panels, and a terminal-inspired palette.
+
+## Tech stack
+
+- **React 19** + **TypeScript** + **Vite**
+- **PeerJS** for WebRTC DataConnection (file + chat) and MediaConnection (voice)
+- **TailwindCSS v4** for the HUD design system
+- **lucide-react** for icons
+
+## Running locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open the printed URL on two or more devices on the same network. Each device generates a short peer ID — share the ID, click **+**, and you're connected.
+
+## How it works
+
+SameLAN uses PeerJS's public broker service only to **introduce** peers; once two devices have shaken hands, all traffic flows directly over WebRTC. Files are sliced into chunks, broadcast to every connection, and reassembled on the receiver. Chat and voice ride the same data and media channels.
+
+## License
+
+MIT.
